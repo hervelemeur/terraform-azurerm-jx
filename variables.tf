@@ -4,7 +4,7 @@ variable "cluster_name" {
 }
 variable "node_count" {
   type    = number
-  default = 1
+  default = 2
 }
 variable "node_size" {
   type    = string
@@ -16,7 +16,7 @@ variable "dns_prefix" {
 }
 variable "cluster_version" {
   type    = string
-  default = "1.18.8"
+  default = "1.18.10"
 }
 variable "location" {
   type    = string
@@ -109,6 +109,10 @@ variable "external_dns_enabled" {
   type    = bool
   default = false
 }
+variable "apex_domain_integration_enabled" {
+  type    = bool
+  default = false
+}
 
 // ----------------------------------------------------------------------------
 // Velero/backup
@@ -140,11 +144,6 @@ variable "velero_ttl" {
 // ----------------------------------------------------------------------------
 // Container Registry
 // ----------------------------------------------------------------------------
-variable "create_registry" {
-  description = "Flag to indicate whether a container registry should be created"
-  type        = bool
-  default     = false
-}
 variable "container_registry_name" {
   description = "Name of container registry"
   type        = string
@@ -210,7 +209,7 @@ variable "webhook" {
 variable "version_stream_url" {
   description = "The URL for the version stream to use when booting Jenkins X. See https://jenkins-x.io/docs/concepts/version-stream/"
   type        = string
-  default     = "https://github.com/jenkins-x/jenkins-x-versions.git"
+  default     = ""
 }
 
 variable "version_stream_ref" {
@@ -241,4 +240,17 @@ variable "jx_bot_token" {
   description = "Bot token used to interact with the Jenkins X cluster git repository"
   type        = string
   default     = ""
+}
+
+// ----------------------------------------------------------------------------
+// Logging
+// ----------------------------------------------------------------------------
+
+variable "enable_log_analytics" {
+  type    = bool
+  default = false
+}
+variable "logging_retention_days" {
+  type    = number
+  default = 30
 }

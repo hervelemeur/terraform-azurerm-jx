@@ -85,6 +85,7 @@ The following sections provide a full list of configuration in- and output varia
 |:------:|-------------|:-----------:|:---------:|:-----:|
 | apex\_domain | The apex domain in to which to create delegation records for the `domain_name` | `string` | `""` | no |
 | apex\_domain\_resource\_group\_name | The resource group name in which the apex domain resides | `string` | `""` | no |
+| apex\_domain\_integration\_enabled | Flag to integrate DNS zone in to an existing apex Azure DNS zon. Effectively creates subdomain delegation record in apex zone so DNS is immediately operable via Terraform. If set to true, then `apex_domain` and `apex_domain_resource_group_name` must also be configured | `bool` | `false` | no |
 | cluster\_name | Variable to provide your desired name for the cluster. The script will create a random name if this is empty | `string` | `""` | no |
 | cluster\_network\_model | Variable to define the network model for the cluster. Valid values are either `kubenet` or `azure` | `string` | `"kubenet"` | no |
 | cluster\_resource\_group\_name | The name of the resource group in to which to provision AKS managed cluster. The script will create a random name if this is empty | `string` | `""` | no |
@@ -97,6 +98,7 @@ The following sections provide a full list of configuration in- and output varia
 | dns\_prefix | DNS prefix for the cluster. The script will create a random name if this is empty | `string` | `""` | no |
 | dns\_resource\_group\_name | The name of the resource group in to which to provision dns resources. The script will create a random name if this is empty | `string` | `""` | no |
 | enable\_backup | Whether or not Velero backups should be enabled | `bool` | `false` | no |
+| enable\_log\_analytics | Flag to indicate whether to enable Log Analytics integration for cluster | `bool` | `false` | no |
 | enable\_workload\_identity | Flag to indicate whether to enable workload identity in the form of Azure AD Pod Identity | `bool` | `false` | no |
 | external\_dns\_enabled | Flag to enable external dns in `jx-requirerments.yml`. Requires `domain_name`, `apex_domain` and `apex_domain_resource_group_name` to be specified so the appropriate Azure DNS zone can be configured correctly.
 | git\_owner\_requirement\_repos | The git id of the owner for the requirement repositories | `string` | `""` | no |
@@ -106,6 +108,7 @@ The following sections provide a full list of configuration in- and output varia
 | jx_bot_token | Bot token used to interact with the Jenkins X cluster git repository | `string` | `""` | no |
 | lets\_encrypt\_production | Flag to determine whether or not to use the Let's Encrypt production server. | `bool` | `true` | no |
 | location | The Azure region in to which to provision the cluster | `string` | `"australiaeast"` | no |
+| logging_retention_days | Number of days to retain logs in Log Analytics if enabled | `number` | `30` | no |
 | network\_name | The name of the Virtual Network in Azure to be created. The script will create a random name if this is empty | `string` | `""` | no |
 | network\_resource\_group\_name | The name of the resource group in to which to provision network resources. The script will create a random name if this is empty | `string` | `""` | no |
 | node\_count | The number of worker nodes to use for the cluster | `number` | `1` | no |
@@ -136,6 +139,7 @@ The following sections provide a full list of configuration in- and output varia
 | dns\_prefix | The FQDN of the created cluster |
 | dns\_resource\_group | Resource group name in which DNS zone was created |
 | domain\_name | The subdomain that houses `jx` hosts |
+| dns\_name\_servers | Nameservers for the DNS zone created. Records should be provided to the parent domain administrators to create subdomain delegation records there |
 | env\_vars | Executable command to set jx boot required environment variables |
 | fully\_qualified\_domain\_name | The fully qualified domain name of the subdomain for 'jx' hosts |
 | jx\_requirements | The jx-requirements rendered output |
@@ -215,7 +219,7 @@ None currently. Check back later!
 
 ### Releasing
 
-At the moment, there is no release pipeline defined in [jenkins-x.yml](./jenkins-x.yml).
+At the moment, there is no release pipeline defined.
 A Terraform release does not require building an artifact; only a tag needs to be created and pushed.
 To make this task easier and there is a helper script `release.sh` which simplifies this process and creates the changelog as well:
 

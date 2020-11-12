@@ -51,7 +51,7 @@ func TestTerraformWorkloadIdentity(t *testing.T) {
 	vaultStorageAccountName := terraform.Output(t, terraformOptions, "vault_storage_account_name")
 	vaultStorageAccountKey := terraform.Output(t, terraformOptions, "vault_storage_account_key")
 	vaultStorageResourceGroupName := terraform.Output(t, terraformOptions, "vault_resource_group_name")
-	vaultName := terraform.Output(t, terraformOptions, "vault_name")
+	vaultName := terraform.Output(t, terraformOptions, "key_vault_name")
 	vaultContainerName := terraform.Output(t, terraformOptions, "vault_container_name")
 	vaultKeyName := terraform.Output(t, terraformOptions, "vault_key_name")
 	workloadIdentitySelector := terraform.Output(t, terraformOptions, "vault_workload_identity_selector")
@@ -84,7 +84,7 @@ func TestTerraformWorkloadIdentity(t *testing.T) {
 			credential)
 
 		// Check Vault Key Vault Access from within cluster by running Kubernetes job
-		clientSet, err := newK8s(kubeConfigPath)
+		clientSet, err := NewK8s(kubeConfigPath)
 
 		if err != nil {
 			t.Fatalf("Unable to build k8s clientSet")
@@ -94,10 +94,13 @@ func TestTerraformWorkloadIdentity(t *testing.T) {
 		var labels = map[string]string{
 			"aadpodidbinding": workloadIdentitySelector,
 		}
-		exitCode, err := executeJob("verify-key-vault-job", os.Getenv(verifyKeyVaultDockerImage), containerArgs, labels, clientSet)
+		exitCode, logs, err := ExecuteJob("verify-key-vault-job", os.Getenv(verifyKeyVaultDockerImage), containerArgs, labels, clientSet)
 
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), exitCode)
+
+		if !assert.Equal(t, int32(0), exitCode) {
+			t.Logf("Non zero exit code returned from pod - pod logs are: %s", logs)
+		}
 
 	}
 }

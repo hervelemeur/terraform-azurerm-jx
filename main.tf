@@ -4,22 +4,36 @@
 // ----------------------------------------------------------------------------
 terraform {
   required_version = ">= 0.13.0"
+  required_providers {
+    azurerm = {
+      version = ">=2.34.0"
+    }
+    azuread = {
+      version = ">=1.0.0"
+    }
+    kubernetes = {
+      version = ">=1.13.3"
+    }
+    helm = {
+      version = ">=1.3.2"
+    }
+    random = {
+      version = ">=3.0.0"
+    }
+    null = {
+      version = ">=3.0.0"
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------
 // Configure providers
 // ----------------------------------------------------------------------------
 provider "azurerm" {
-  version = ">= 2.31.1"
   features {}
 }
 
-provider "azuread" {
-  version = ">=1.0.0"
-}
-
 provider "kubernetes" {
-  version          = ">= 1.13.2"
   load_config_file = false
 
   host = module.cluster.cluster_endpoint
@@ -35,7 +49,6 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  version = ">=1.3.2"
   kubernetes {
     load_config_file = false
 
@@ -50,10 +63,6 @@ provider "helm" {
       module.cluster.client_key,
     )
   }
-}
-
-provider "random" {
-  version = ">=3.0.0"
 }
 
 // ----------------------------------------------------------------------------
@@ -86,7 +95,6 @@ resource "azurerm_resource_group" "dns" {
 }
 
 resource "azurerm_resource_group" "registry" {
-  count    = var.create_registry ? 1 : 0
   name     = local.registry_resource_group_name
   location = var.location
 }
@@ -119,6 +127,8 @@ module "cluster" {
   jx_bot_username          = var.jx_bot_username
   jx_bot_token             = var.jx_bot_token
   secrets_infra_namespace  = local.secret_infra_namespace
+  enable_log_analytics     = var.enable_log_analytics
+  logging_retention_days   = var.logging_retention_days
 }
 
 // ----------------------------------------------------------------------------
@@ -155,17 +165,18 @@ module "backup" {
 // ----------------------------------------------------------------------------
 
 module "dns" {
-  source                   = "./modules/dns"
-  resource_group_name      = var.external_dns_enabled ? azurerm_resource_group.dns.0.name : ""
-  apex_resource_group_name = var.apex_domain_resource_group_name
-  apex_domain              = var.apex_domain
-  domain_name              = local.domain_name
-  enabled                  = var.external_dns_enabled
-  jenkins_x_namespace      = module.cluster.jenkins_x_namespace
-  kubelet_identity_id      = module.cluster.kubelet_identity_id
-  subscription_id          = data.azurerm_client_config.current.subscription_id
-  tenant_id                = local.tenant_id
-  is_jx2                   = var.is_jx2
+  source                          = "./modules/dns"
+  resource_group_name             = var.external_dns_enabled ? azurerm_resource_group.dns.0.name : ""
+  apex_resource_group_name        = var.apex_domain_resource_group_name
+  apex_domain                     = var.apex_domain
+  domain_name                     = local.domain_name
+  enabled                         = var.external_dns_enabled
+  jenkins_x_namespace             = module.cluster.jenkins_x_namespace
+  kubelet_identity_id             = module.cluster.kubelet_identity_id
+  subscription_id                 = data.azurerm_client_config.current.subscription_id
+  tenant_id                       = local.tenant_id
+  is_jx2                          = var.is_jx2
+  apex_domain_integration_enabled = var.apex_domain_integration_enabled
 }
 
 // ----------------------------------------------------------------------------
@@ -174,42 +185,26 @@ module "dns" {
 module "registry" {
   source                  = "./modules/registry"
   location                = var.location
-  resource_group          = var.create_registry ? azurerm_resource_group.registry.0.name : ""
-  create_registry         = var.create_registry
+  resource_group          = azurerm_resource_group.registry.name
   container_registry_name = local.container_registry_name
   kubelet_identity_id     = module.cluster.kubelet_identity_id
 }
 
 // ----------------------------------------------------------------------------
-// Setup Vault dependencies in Azure (if Vault selected for secret storage)
+// Setup Secret Storage dependencies in Azure
 // ----------------------------------------------------------------------------
-module "vault" {
-  source                       = "./modules/vault"
-  location                     = var.location
+module "secretstorage" {
+  source                       = "./modules/secretstorage"
   cluster_id                   = local.cluster_id
   cluster_name                 = local.cluster_name
-  enable_vault                 = ! var.secret_management.enable_native
-  resource_group               = azurerm_resource_group.secrets.name
-  kubelet_identity_id          = module.cluster.kubelet_identity_id
-  tenant_id                    = local.tenant_id
-  storage_account_regex        = local.alphanum_regex
-  identity_resource_group_name = local.identity_resource_group_name
-  secret_infra_namespace       = local.secret_infra_namespace
+  enable_native                = var.secret_management.enable_native
   enable_workload_identity     = var.enable_workload_identity
-}
-
-// ----------------------------------------------------------------------------
-// Setup Key Vault dependencies in Azure (if Key Vault selected for secret storage)
-// ----------------------------------------------------------------------------
-module "key_vault" {
-  source          = "./modules/keyvault"
-  location        = var.location
-  cluster_id      = local.cluster_id
-  cluster_name    = local.cluster_name
-  resource_group  = azurerm_resource_group.secrets.name
-  enable_keyvault = var.secret_management.enable_native
-  tenant_id       = local.tenant_id
-  key_vault_regex = local.alphanum_regex
+  identity_resource_group_name = local.identity_resource_group_name
+  kubelet_identity_id          = module.cluster.kubelet_identity_id
+  location                     = var.location
+  resource_group_name          = azurerm_resource_group.secrets.name
+  storage_account_regex        = local.alphanum_regex
+  tenant_id                    = local.tenant_id
 }
 
 // ----------------------------------------------------------------------------
@@ -237,6 +232,9 @@ locals {
     enable_external_dns  = var.external_dns_enabled
     domain               = module.dns.domain
     ignore_load_balancer = var.external_dns_enabled
+    dns_tenant_id        = module.dns.tenant_id
+    dns_subscription_id  = module.dns.subscription_id
+    dns_resource_group   = module.dns.resource_group_name
 
     // TLS
     enable_tls                 = var.tls.enable
@@ -254,19 +252,18 @@ locals {
     backup_container_url                  = module.backup.backup_container_url
 
     // Container Registry
-    create_registry = var.create_registry
-    registry_name   = var.create_registry ? "${local.container_registry_name}.azurecr.io" : ""
+    registry_name = "${local.container_registry_name}.azurecr.io"
 
     // Vault
     enable_vault                 = ! var.secret_management.enable_native
     vault_tenant_id              = local.tenant_id
-    vault_keyvault_name          = module.vault.vault_keyvault_name
-    vault_key_name               = module.vault.vault_key_name
-    vault_storage_account_name   = module.vault.vault_storage_account_name
-    vault_storage_container_name = module.vault.vault_storage_container_name
+    vault_keyvault_name          = module.secretstorage.keyvault_name
+    vault_key_name               = module.secretstorage.key_name
+    vault_storage_account_name   = module.secretstorage.storage_account_name
+    vault_storage_container_name = module.secretstorage.storage_container_name
 
     version_stream_ref = var.version_stream_ref
-    version_stream_url = var.version_stream_url
+    version_stream_url = local.version_stream_url
     webhook            = var.webhook
   })
 

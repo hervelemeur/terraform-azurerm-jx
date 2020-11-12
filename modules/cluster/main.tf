@@ -29,19 +29,34 @@ resource "azurerm_kubernetes_cluster" "aks" {
       managed = true
     }
   }
+
+  addon_profile {
+    dynamic "oms_agent" {
+      for_each = var.enable_log_analytics ? [""] : []
+      content {
+        enabled                    = var.enable_log_analytics
+        log_analytics_workspace_id = var.enable_log_analytics ? azurerm_log_analytics_workspace.cluster[0].id : ""
+      }
+    }
+    aci_connector_linux {
+      enabled = false
+    }
+    azure_policy {
+      enabled = false
+    }
+    http_application_routing {
+      enabled = false
+    }
+    kube_dashboard {
+      enabled = false
+    }
+  }
 }
 
 resource "kubernetes_namespace" "jenkins_x_namespace" {
   count = var.is_jx2 ? 1 : 0
   metadata {
     name = var.jenkins_x_namespace
-  }
-
-  lifecycle {
-    ignore_changes = [
-      metadata[0].labels,
-      metadata[0].annotations,
-    ]
   }
 
   depends_on = [
@@ -58,7 +73,11 @@ resource "kubernetes_namespace" "secrets_infra" {
   lifecycle {
     ignore_changes = [
       metadata[0].labels,
-      metadata[0].annotations,
     ]
   }
+
+  depends_on = [
+    azurerm_kubernetes_cluster.aks
+  ]
+
 }

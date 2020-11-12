@@ -26,12 +26,14 @@ locals {
   container_registry_name          = var.container_registry_name != "" ? var.container_registry_name : replace("${local.prefix}${random_pet.pet.id}", "-", "")
   secrets_resource_group_name      = var.secret_management.resource_group_name != "" ? var.secret_management.resource_group_name : "${local.prefix}-rg-secrets-${random_pet.pet.id}"
 
+  version_stream_url = var.version_stream_url != "" ? var.version_stream_url : var.is_jx2 ? "https://github.com/jenkins-x/jenkins-x-versions.git" : "https://github.com/jenkins-x/jxr-versions.git"
+
   vault_identity_name = "key-vault-${local.cluster_id}"
   identities = var.enable_workload_identity ? [{
     name       = local.vault_identity_name
     namespace  = local.secret_infra_namespace
-    resourceId = module.vault.vault_identity.resourceId
-    clientId   = module.vault.vault_identity.clientId
+    resourceId = module.secretstorage.secret_workload_identity.resourceId
+    clientId   = module.secretstorage.secret_workload_identity.clientId
     binding = {
       name     = local.vault_identity_name
       selector = local.vault_identity_name
